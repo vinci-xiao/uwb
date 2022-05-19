@@ -182,7 +182,7 @@ void USART_puts(uint8_t *s,uint8_t len);
 #define MAX_SLAVE_TAG 0x02
 #define SLAVE_TAG_START_INDEX 0x01
 
-//#define ANTHOR
+#define ANTHOR
 #define ANCHOR_MAX_NUM 3
 #define ANCHOR_IND 2  // 0 1 2
 //#define ANCHOR_IND ANCHOR_NUM
@@ -248,7 +248,7 @@ void Tag_Measure_Dis(void)
         dwt_setrxtimeout(RESP_RX_TIMEOUT_UUS);
         /* Write frame data to DW1000 and prepare transmission. See NOTE 7 below. */
         tx_poll_msg[ALL_MSG_SN_IDX] = frame_seq_nb;
-        tx_poll_msg[ALL_MSG_TAG_IDX] = TAG_ID;//»ùÕ¾ÊÕµ½±êÇ©µÄÐÅÏ¢£¬ÀïÃæÓÐTAG_ID,ÔÚ»ùÕ¾»Ø¸´±êÇ©µÄÊ±ºò£¬Ò²ÐèÒªÖ¸¶¨TAG_ID,Ö»ÓÐTAG_IDÒ»ÖÂ²Å×ö´¦Àí
+        tx_poll_msg[ALL_MSG_TAG_IDX] = TAG_ID;//ï¿½ï¿½Õ¾ï¿½Õµï¿½ï¿½ï¿½Ç©ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½TAG_ID,ï¿½Ú»ï¿½Õ¾ï¿½Ø¸ï¿½ï¿½ï¿½Ç©ï¿½ï¿½Ê±ï¿½ï¿½Ò²ï¿½ï¿½ÒªÖ¸ï¿½ï¿½TAG_ID,Ö»ï¿½ï¿½TAG_IDÒ»ï¿½Â²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
         dwt_writetxdata(sizeof(tx_poll_msg), tx_poll_msg, 0);
         dwt_writetxfctrl(sizeof(tx_poll_msg), 0);
@@ -259,7 +259,7 @@ void Tag_Measure_Dis(void)
 
         //GPIO_SetBits(GPIOA,GPIO_Pin_2);
         //TODO
-        dwt_rxenable(0);//Õâ¸öºó¼ÓµÄ£¬Ä¬ÈÏtxºóÓ¦¸Ã×Ô¶¯ÇÐ»»rx£¬µ«ÊÇÄ¿Ç°debug ·¢ÏÖ²¢Ã»ÓÐ×Ô¶¯´ò¿ª£¬ÕâÀïÇ¿ÖÆ´ò¿ªrx
+        dwt_rxenable(0);//ï¿½ï¿½ï¿½ï¿½ï¿½ÓµÄ£ï¿½Ä¬ï¿½ï¿½txï¿½ï¿½Ó¦ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½Ð»ï¿½rxï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿Ç°debug ï¿½ï¿½ï¿½Ö²ï¿½Ã»ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ò¿ª£ï¿½ï¿½ï¿½ï¿½ï¿½Ç¿ï¿½Æ´ï¿½rx
 
         /* We assume that the transmission is achieved correctly, poll for reception of a frame or error/timeout. See NOTE 8 below. */
         while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) & (SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_ERR)))
@@ -278,7 +278,7 @@ void Tag_Measure_Dis(void)
                 dwt_readrxdata(rx_buffer, frame_len, 0);
             }
 
-            if(rx_buffer[ALL_MSG_TAG_IDX] != TAG_ID)//¼ì²âTAG_ID
+            if(rx_buffer[ALL_MSG_TAG_IDX] != TAG_ID)//ï¿½ï¿½ï¿½TAG_ID
                 continue;
             rx_buffer[ALL_MSG_TAG_IDX] = 0;
 
@@ -462,10 +462,9 @@ int main(void)
 #ifdef ANTHOR
     Anchor_Array_Init();
     /* Loop forever initiating ranging exchanges. */
-		OLED_ShowString(0,0,"   51UWB Node");
-		sprintf(dist_str, "    ANTHOR:%02X", ANCHOR_IND);
+		OLED_ShowString(0,0," EVpi UWB Node");
+		sprintf(dist_str, "   ANTHOR:%02X", ANCHOR_IND);
     OLED_ShowString(0,2,dist_str);
-		OLED_ShowString(0,6,"  www.51uwb.cn");
     while (1)
     {
         /* Clear reception timeout to start next ranging process. */
@@ -563,12 +562,12 @@ int main(void)
 
                         tof = tof_dtu * DWT_TIME_UNITS;
                         distance = tof * SPEED_OF_LIGHT;
-                        distance = distance - dwt_getrangebias(config.chan,(float)distance, config.prf);//¾àÀë¼õÈ¥½ÃÕýÏµÊý
-                        //½«¼ÆËã½á¹û·¢ËÍ¸øTAG
+                        distance = distance - dwt_getrangebias(config.chan,(float)distance, config.prf);//ï¿½ï¿½ï¿½ï¿½ï¿½È¥ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½
+                        //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¸ï¿½TAG
                         int temp = (int)(distance*100);
                         distance_msg[10] = temp/100;
-                        // a=x;  //×Ô¶¯ÀàÐÍ×ª»»£¬È¡ÕûÊý²¿·Ö
-                        distance_msg[11] = temp%100;  //³Ë100ºó¶Ô100È¡Óà£¬µÃµ½2Î»Ð¡ÊýµãºóÊý×Ö
+                        // a=x;  //ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+                        distance_msg[11] = temp%100;  //ï¿½ï¿½100ï¿½ï¿½ï¿½100È¡ï¿½à£¬ï¿½Ãµï¿½2Î»Ð¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
                         distance_msg[12] = anthor_index;
 
                         distance_msg[ALL_MSG_SN_IDX] = frame_seq_nb;
@@ -616,15 +615,13 @@ int main(void)
     dwt_setrxtimeout(RESP_RX_TIMEOUT_UUS);
     if(TAG_ID == MASTER_TAG)
     {
-				OLED_ShowString(0,0,"   51UWB Node");
-				OLED_ShowString(0,6,"  www.51uwb.cn");
+				OLED_ShowString(0,0," EVpi UWB Node");
         OLED_ShowString(0,2,"   MASTER TAG ");
     }
     else
     {
-				OLED_ShowString(0,0,"   51UWB Node");
-				OLED_ShowString(0,6,"  www.51uwb.cn");
-        OLED_ShowString(0,0,"   SLAVE TAG ");
+				OLED_ShowString(0,0," EVpi UWB Node");
+        OLED_ShowString(0,2,"   SLAVE TAG ");
     }
 
 
@@ -826,7 +823,7 @@ int main(void)
                     dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_ERR);
                 }
             }
-            //¿ÉÄÜ´æÔÚµÄÎÊÌâ£¬TAGÊÕµ½Semaphore Ã»ÓÐÊÍ·Å¾ÍÀë¿ªÍøÂç£¬µ¼ÖÂMaster TAGÎÞ·¨ÊÕ»ØSemaphore£¬Õâ¸öÐèÒª¶¨Ê±Æ÷ÊµÏÖ£¬¶¨Ê±Ò»¶ÎÊ±¼ä£¬ÈôÒÀÈ»Ã»ÓÐÊÕµ½TAG ÊÍ·ÅSemaphore£¬ÐèÒªÇ¿ÖÆÈ¡Ïû
+            //ï¿½ï¿½ï¿½Ü´ï¿½ï¿½Úµï¿½ï¿½ï¿½ï¿½â£¬TAGï¿½Õµï¿½Semaphore Ã»ï¿½ï¿½ï¿½Í·Å¾ï¿½ï¿½ë¿ªï¿½ï¿½ï¿½ç£¬ï¿½ï¿½ï¿½ï¿½Master TAGï¿½Þ·ï¿½ï¿½Õ»ï¿½Semaphoreï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½ï¿½Ê±ï¿½ï¿½Êµï¿½Ö£ï¿½ï¿½ï¿½Ê±Ò»ï¿½ï¿½Ê±ï¿½ä£¬ï¿½ï¿½ï¿½ï¿½È»Ã»ï¿½ï¿½ï¿½Õµï¿½TAG ï¿½Í·ï¿½Semaphoreï¿½ï¿½ï¿½ï¿½ÒªÇ¿ï¿½ï¿½È¡ï¿½ï¿½
             //if all tag have serviced by  master tag
             //master tag can measure the distance
             if(Sum_Tag_Semaphore_request() == 0)
@@ -837,7 +834,7 @@ int main(void)
         }
         else  //slave tags
         {
-            //SLAVE TAG Æô¶¯Ä¬ÈÏµÈ´ýMASTER TAG·¢ËÍÍ³¼ÆÐÅÏ¢ÒÔ¼°ÊÍ·ÅÐÅºÅÁ¿
+            //SLAVE TAG ï¿½ï¿½ï¿½ï¿½Ä¬ï¿½ÏµÈ´ï¿½MASTER TAGï¿½ï¿½ï¿½ï¿½Í³ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½Ô¼ï¿½ï¿½Í·ï¿½ï¿½Åºï¿½ï¿½ï¿½
             dwt_setrxtimeout(0);
             dwt_rxenable(0);
 
@@ -1198,7 +1195,7 @@ void assert_failed(uint8_t* file, uint32_t line)
 PUTCHAR_PROTOTYPE
 {
     /* Place your implementation of fputc here */
-    /* ÇåSR¼Ä´æÆ÷ÖÐµÄTC±êÖ¾ */
+    /* ï¿½ï¿½SRï¿½Ä´ï¿½ï¿½ï¿½ï¿½Ðµï¿½TCï¿½ï¿½Ö¾ */
 
     USART_ClearFlag(EVAL_COM1,USART_FLAG_TC);
     /* e.g. write a character to the USART */
