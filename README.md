@@ -3,7 +3,7 @@
 
 #### Define a Tag
 ```
-define TAG
+#define TAG
 #define TAG_ID 0x0F
 #define MASTER_TAG 0x0F
 #define MAX_SLAVE_TAG 0x02
