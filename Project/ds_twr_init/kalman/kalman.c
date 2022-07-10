@@ -1,134 +1,329 @@
-/* Includes ------------------------------------------------------------------*/
-#include "stm32f10x.h"	
-#include "kalman.h"	
-#include "matrix.h"				 				 		
+#include  "kalman.h"
+#include  "stdlib.h"
+#include  "math.h"
+
 
 /*==============================================================================
-1.预估计
-   X(k|k-1) = F(k,k-1)*X(k-1|k-1)        //控制量为0
+1.啎嘛數
+   X(k|k-1) = A(k,k-1)*X(k-1|k-1)                 //諷秶講峈0
 
 
-2.计算预估计协方差矩阵
-   P(k|k-1) = F(k,k-1)*P(k-1|k-1)*F(k,k-1)'+Q(k)
-   Q(k) = U(k)×U(k)' 
+2.數呾啎嘛數衪源船撻淝
+   P(k|k-1) = A(k,k-1)*P(k-1|k-1)*A(k,k-1)'+Q(k)
+   Q(k) = U(k)℅U(k)' 
 
 
-3.计算卡尔曼增益矩阵
-   Kg(k) = P(k|k-1)*H' / (H*P(k|k-1)*H' + R(k))
-   R(k) = N(k)×N(k)' 
+3.數呾縐嫌霤崝祔撻淝
+   K(k) = P(k|k-1)*C(k)' / (C(k)*P(k|k-1)*C(k)' + R(k))
+   R(k) = N(k)℅N(k)' 
 
 
-4.更新估计
-   X(k|k) = X(k|k-1)+Kg(k)*(Z(k)-H*X(k|k-1))
+4.載陔嘛數
+   X(k|k) = X(k|k-1)+K(k)*(Y(k)-C(k)*X(k|k-1))
 
 
-5.计算更新后估计协防差矩阵
-   P(k|k) =（I-Kg(k)*H）*P(k|k-1)
+5.數呾載陔綴嘛數衪滅船撻淝
+   P(k|k) =ㄗI-K(k)*C(k)ㄘ*P(k|k-1)
 
 
-6. 更新最优值
+6. 載陔郔蚥硉
 
 
-F(k,k-1):     状态转移矩阵
-X(k|k-1):     根据k-1时刻的最优值估计k时刻的值
-X(k-1|k-1):   k-1时刻的最优值
-P(k|k-1):     X(k|k-1)对应的covariance
-P(k-1|k-1):   X(k-1|k-1)对应的covariance
-Q(k):         系统过程的covariance
-R(k):         测量过程的协方差
-H(k):         观测矩阵转移矩阵
-Z(k):         k时刻的测量值
+A(k,k-1):     袨怓蛌痄撻淝
+B(k,k-1):     袨怓腔諷秶講
+C(k):         夤聆撻淝蛌痄撻淝
+X(k|k-1):     跦擂k-1奀覦腔郔蚥硉嘛數k奀覦腔硉
+X(k-1|k-1):   k-1奀覦腔郔蚥硉
+P(k|k-1):     X(k|k-1)勤茼腔covariance
+P(k-1|k-1):   X(k-1|k-1)勤茼腔covariance
+Q(k):         炵苀徹最腔covariance(勤奻珨棒聆講嘛數硉腔陓?最僅)
+R(k):         聆講徹最腔衪源船
+Y(k):         k奀覦腔聆講硉
+K(k):         縐嫌霤崝祔
+U(k):         k奀覦雄怓婑汒
+N(k):         k奀覦夤聆婑汒
 
 
-基本思路: 首先根据上一次(如果是第一次则根据预赋值计算)的数据计算出本次的估计值,
-          同理,根据上一次的数据计算出本次估计值的协方差;  接着,由本次估计值的协
-          方差计算出卡尔曼增益;  最后,根据估测值和测量值计算当前最优值及其协方差
+瞰?:     炵苀袨怓X-----------妗暱恲僅
+          炵苀撻淝A-----------恲僅曹趙蛌痄
+          袨怓腔諷秶講B-------(籵都羶衄)
+          夤聆硉Y-------------恲僅數黍杅
+          夤聆撻淝C-----------扜庌僅-△貌庌僅
+          徹最婑汒Q-----------恲僅曹趙?船
+          聆講婑汒R-----------黍杅昫船
+
+價掛佷繚: 忑珂跦擂奻珨棒(?彆岆菴珨棒寀跦擂啎董硉數呾)腔杅擂數呾堤掛棒腔嘛數硉,
+          肮燴,跦擂奻珨棒腔杅擂數呾堤掛棒嘛數硉腔衪源船;  諉覂,蚕掛棒嘛數硉腔衪
+          源船數呾堤縐嫌霤崝祔;  郔綴,跦擂嘛聆硉睿聆講硉數呾絞?郔蚥硉摯?衪源船
+          鍚俋,縐嫌霤薦疏硐岆奀郖奻腔揭燴,褫眕?峈?薹荌砒竭苤
 ==============================================================================*/
 
 
 
 //================================================//
-//==             最优值方差结构体               ==//
+//==             郔蚥硉源船賦凳极               ==//
 //================================================//
 typedef struct  _tCovariance
 {
-  float PNowOpt[LENGTH];
-  float PPreOpt[LENGTH];
+  float PNowOpt[P_LENGTH];
+  float PPreOpt[P_LENGTH];
 }tCovariance;
 
-static tOptimal      tOpt;
-static tCovariance   tCov;
-//float         Z[LENGTH]  = {4000};           //  测量值(每次测量的数据需要存入该数组)
-static float         I[LENGTH]  = {1};              //  单位矩阵
-static float         X[LENGTH]  = {9.8};              //  当前状态的预测值
-static float         P[LENGTH]  = {0};              //  当前状态的预测值的协方差
-static float         K[LENGTH]  = {0};              //  卡尔曼增益
-static float         Temp3[LENGTH] = {0};           //  辅助变量
-//============================================================================//
-//==                    卡尔曼滤波需要配置的变量                            ==//
-//============================================================================//
-static float         F[LENGTH]  = {1};              //  状态转移矩阵   即：坚信当前的状态与上一次状态的关系，如果坚信是一样的，则状态转移矩阵就为单位矩阵
-static float         Q[LENGTH]  = {0.0001f};//0.0001f              //  系统过程的协方差	协方差的定义：真实值与期望值之差的平方的期望值
-static float         R[LENGTH]  = {2};              //  测量过程的协方差	协方差的定义：真实值与期望值之差的平方的期望值   
-//如果你需要滤波结果更依赖于观测量，那就调小R，增大Q；反之，调大R，调小Q，这样估计值就取决于系统。
-//如果R大Q小，就是说，状态估计值比测量值要可靠，这时，所得出的结果就是更接近估计值；
-//如果R小Q大，这时，计算出来的结果就会更接近测量值。
-static float         H[LENGTH]  = {1};              //  观测矩阵转移矩阵	测量值与状态预测值之间的单位换算关系，即把预测值单位换算成测量值单位
-static float         Temp1[LENGTH] = {1};           //  辅助变量, 同时保存tOpt.XPreOpt[]的初始化值
-static float         Temp2[LENGTH] = {10000};       //  辅助变量, 同时保存tCov.PPreOpt[]的初始化值
 
 
-void KalMan_PramInit(void)
+//================================================//
+//==               郔蚥硉賦凳极                 ==//
+//================================================//
+typedef struct  _tOptimal
 {
-  unsigned char   i;
-  
-  for (i=0; i<LENGTH; i++)
-  {
-    tOpt.XPreOpt[i] = Temp1[i];           //零值初始化
-  }
-  for (i=0; i<LENGTH; i++)
-  {
-    tCov.PPreOpt[i] = Temp2[i];           //零值初始化
-  }
+  float XNowOpt[X_LENGTH];
+  float XPreOpt[X_LENGTH];
+}tOptimal;
+
+
+
+tOptimal      tOpt;                                     //  婓薦疏滲杅笢輛俴場宎趙錨硉
+tOptimal      tOpt_1;                                     //  婓薦疏滲杅笢輛俴場宎趙錨硉
+tOptimal      tOpt_2;                                     //  婓薦疏滲杅笢輛俴場宎趙錨硉
+
+tCovariance   tCov;                                     //  婓薦疏滲杅笢輛俴場宎趙錨硉
+tCovariance   tCov_1;                                     //  婓薦疏滲杅笢輛俴場宎趙錨硉
+tCovariance   tCov_2;                                     //  婓薦疏滲杅笢輛俴場宎趙錨硉
+
+float         Y[Y_LENGTH]  = Y_VALUE;                   //  聆講硉(藩棒聆講腔杅擂剒猁湔?蜆杅郪)
+float         Y_1[Y_LENGTH]  = Y_VALUE;                   //  聆講硉(藩棒聆講腔杅擂剒猁湔?蜆杅郪)
+float         Y_2[Y_LENGTH]  = Y_VALUE;                   //  聆講硉(藩棒聆講腔杅擂剒猁湔?蜆杅郪)
+float         I[I_LENGTH]  = I_VALUE;                   //  等弇撻淝
+float         I_1[I_LENGTH]  = I_VALUE;                   //  等弇撻淝
+float         I_2[I_LENGTH]  = I_VALUE;                   //  等弇撻淝
+float         X[X_LENGTH]  = X_VALUE;                   //  絞?袨怓腔啎聆硉
+float         X_1[X_LENGTH]  = X_VALUE;                   //  絞?袨怓腔啎聆硉
+float         X_2[X_LENGTH]  = X_VALUE;                   //  絞?袨怓腔啎聆硉
+float         P[P_LENGTH]  = P_VALUE;                   //  絞?袨怓腔啎聆硉腔衪源船
+float         P_1[P_LENGTH]  = P_VALUE;                   //  絞?袨怓腔啎聆硉腔衪源船
+float         P_2[P_LENGTH]  = P_VALUE;                   //  絞?袨怓腔啎聆硉腔衪源船
+float         K[K_LENGTH]  = K_VALUE;                   //  縐嫌霤崝祔
+float         K_1[K_LENGTH]  = K_VALUE;                   //  縐嫌霤崝祔
+float         K_2[K_LENGTH]  = K_VALUE;                   //  縐嫌霤崝祔
+float         Temp1[1]     = {0};                       //  落翑曹講
+float         Temp1_1[1]     = {0};                       //  落翑曹講
+float         Temp1_2[1]     = {0};                       //  落翑曹講
+//============================================================================//
+//==                    縐嫌霤薦疏剒猁饜离腔曹講                            ==//
+//============================================================================//
+float         A[A_LENGTH]       = A_VALUE;              //  袨怓蛌痄撻淝
+float         A_1[A_LENGTH]       = A_VALUE;              //  袨怓蛌痄撻淝
+float         A_2[A_LENGTH]       = A_VALUE;              //  袨怓蛌痄撻淝
+float         B[B_LENGTH]       = B_VALUE;              //  炵苀統杅
+float         B_1[B_LENGTH]       = B_VALUE;              //  炵苀統杅
+float         B_2[B_LENGTH]       = B_VALUE;              //  炵苀統杅
+float         Q[Q_LENGTH]       = Q_VALUE;              //  炵苀徹最腔衪源船
+float         Q_1[Q_LENGTH]       = Q_VALUE;              //  炵苀徹最腔衪源船
+float         Q_2[Q_LENGTH]       = Q_VALUE;              //  炵苀徹最腔衪源船
+float         C[C_LENGTH]       = C_VALUE;              //  夤聆撻淝蛌痄撻淝
+float         C_1[C_LENGTH]       = C_VALUE;              //  夤聆撻淝蛌痄撻淝
+float         C_2[C_LENGTH]       = C_VALUE;              //  夤聆撻淝蛌痄撻淝
+float         R[R_LENGTH]       = R_VALUE;              //  聆講徹最腔衪源船
+float         R_1[R_LENGTH]       = R_VALUE;              //  聆講徹最腔衪源船
+float         R_2[R_LENGTH]       = R_VALUE;              //  聆講徹最腔衪源船
+float         Temp2[X_LENGTH]   = X_VALUE;              //  落翑曹講, 肮奀悵湔tOpt.XPreOpt[]腔場宎趙硉
+float         Temp2_1[X_LENGTH]   = X_VALUE;              //  落翑曹講, 肮奀悵湔tOpt.XPreOpt[]腔場宎趙硉
+float         Temp2_2[X_LENGTH]   = X_VALUE;              //  落翑曹講, 肮奀悵湔tOpt.XPreOpt[]腔場宎趙硉
+float         Temp22[X_LENGTH]  = X_VALUE;              //  落翑曹講
+float         Temp22_1[X_LENGTH]  = X_VALUE;              //  落翑曹講
+float         Temp22_2[X_LENGTH]  = X_VALUE;              //  落翑曹講
+float         Temp4[P_LENGTH]   = P_VALUE;              //  落翑曹講, 肮奀悵湔tCov.PPreOpt[]腔場宎趙硉
+float         Temp4_1[P_LENGTH]   = P_VALUE;              //  落翑曹講, 肮奀悵湔tCov.PPreOpt[]腔場宎趙硉
+float         Temp4_2[P_LENGTH]   = P_VALUE;              //  落翑曹講, 肮奀悵湔tCov.PPreOpt[]腔場宎趙硉
+
+
+//============================================================================//
+//==                          縐嫌霤薦疏                                    ==//
+//============================================================================//
+//==?諳統杅: 拸                                                            ==//
+//==堤諳統杅: 拸                                                            ==//
+//==殿隙硉:   拸                                                            ==//
+//============================================================================//
+float Watch1[N]={0};
+float Watch2[N]={0};
+float Watch3[N]={0};
+
+void KalMan_Init(void)
+{
+	unsigned char   i;
+	for (i=0; i<X_LENGTH; i++)
+	{
+		tOpt.XPreOpt[i] = Temp2[i];           //錨硉場宎趙
+	}
+	for (i=0; i<P_LENGTH; i++)
+	{
+		tCov.PPreOpt[i] = Temp4[i];           //錨硉場宎趙
+	}
 }
 
-
-//============================================================================//
-//==                          卡尔曼滤波                                    ==//
-//============================================================================//
-//==入口参数: 当前时刻的测量值                                                            ==//
-//==出口参数: 当前时刻的最优值                                                            ==//
-//==返回值:   当前时刻的最优值                                                            ==//
-//============================================================================//
-float KalMan_Update(double *Z)
+void KalMan_Init_1(void)
 {
-	u8 i;  
-	MatrixMul(F, tOpt.XPreOpt, X, ORDER, ORDER, ORDER);       //  基于系统的上一状态而预测现在状态; X(k|k-1) = F(k,k-1)*X(k-1|k-1)
-
-	MatrixCal(F, tCov.PPreOpt, Temp1, ORDER);
-	MatrixAdd(Temp1, Q, P, ORDER, ORDER);                     //  预测数据的协方差矩阵; P(k|k-1) = F(k,k-1)*P(k-1|k-1)*F(k,k-1)'+Q
-
-	MatrixCal(H, P, Temp1, ORDER);
-	MatrixAdd(Temp1, R, Temp1, ORDER, ORDER);
-	Gauss_Jordan(Temp1, ORDER);
-	MatrixTrans(H, Temp2, ORDER, ORDER);
-	MatrixMul(P, Temp2, Temp3, ORDER, ORDER, ORDER);
-	MatrixMul(Temp1, Temp3, K, ORDER, ORDER, ORDER);          //  计算卡尔曼增益; Kg(k) = P(k|k-1)*H' / (H*P(k|k-1)*H' + R)
-
-	MatrixMul(H, X, Temp1, ORDER, ORDER, ORDER);
-	MatrixMinus(Z, Temp1, Temp1, ORDER, ORDER);
-	MatrixMul(K, Temp1, Temp2, ORDER, ORDER, ORDER);
-	MatrixAdd(X, Temp2, tOpt.XNowOpt, ORDER, ORDER);          //  根据估测值和测量值计算当前最优值; X(k|k) = X(k|k-1)+Kg(k)*(Z(k)-H*X(k|k-1))
-
-	MatrixMul(K, H, Temp1, ORDER, ORDER, ORDER);
-	MatrixMinus((double *)I, Temp1, Temp1, ORDER, ORDER);
-	MatrixMul(Temp1, P, tCov.PNowOpt, ORDER, ORDER, ORDER);   //  计算更新后估计协防差矩阵; P(k|k) =（I-Kg(k)*H）*P(k|k-1)
-
-	for (i=0; i<LENGTH; i++)
+	unsigned char   i;
+	for (i=0; i<X_LENGTH; i++)
 	{
-	  tOpt.XPreOpt[i] = tOpt.XNowOpt[i];
-	  tCov.PPreOpt[i] = tCov.PNowOpt[i];
+		tOpt_1.XPreOpt[i] = Temp2_1[i];           //錨硉場宎趙
 	}
-	
-	return tOpt.XNowOpt[0];
+	for (i=0; i<P_LENGTH; i++)
+	{
+		tCov_1.PPreOpt[i] = Temp4_1[i];           //錨硉場宎趙
+	}
+}
+
+void KalMan_Init_2(void)
+{
+	unsigned char   i;
+	for (i=0; i<X_LENGTH; i++)
+	{
+		tOpt_1.XPreOpt[i] = Temp2_1[i];           //錨硉場宎趙
+	}
+	for (i=0; i<P_LENGTH; i++)
+	{
+		tCov_1.PPreOpt[i] = Temp4_1[i];           //錨硉場宎趙
+	}
+}
+
+float KalMan(float input)
+{
+	unsigned char   i,j;
+  //for (j=0; j<N; j++)
+  {
+    //Watch1[j] = 100 + j*2;
+    //Watch1[j] = input;
+
+    //Y[0] = Watch1[j] + Random1(0, 0.4);
+   // Y[0] = Watch1[j] + (rand()%20)-10;
+    Y[0] = input;
+    //Watch2[j] = Y[0];
+    MatrixMul(A, tOpt.XPreOpt, X, A_ROW, X_ROW, X_COLUMN);       //  價衾炵苀腔奻珨袨怓奧啎聆珋婓袨怓; X(k|k-1) = A(k,k-1)*X(k-1|k-1)
+    
+    MatrixCal1(A, tCov.PPreOpt, Temp4, SYS_ORDER);
+    MatrixAdd(Temp4, Q, P, P_ROW, P_COLUMN);                     //  啎聆杅擂腔衪源船撻淝; P(k|k-1) = A(k,k-1)*P(k-1|k-1)*A(k,k-1)'+Q
+    
+    MatrixCal2(C, P, Temp1, C_ROW, C_COLUMN);
+    MatrixAdd(Temp1, R, Temp1, R_ROW, R_COLUMN);
+    Gauss_Jordan(Temp1, C_ROW);
+    MatrixTrans(C, Temp2, C_ROW, C_COLUMN);
+    MatrixMul(P, Temp2, Temp22, P_ROW, C_COLUMN, C_ROW);
+    MatrixMul(Temp22, Temp1, K, P_ROW, C_ROW, C_ROW);            //  數呾縐嫌霤崝祔; K(k) = P(k|k-1)*C' / (C(k)*P(k|k-1)*C(k)' + R)
+    
+    MatrixMul(C, X, Temp1, C_ROW, X_ROW, X_COLUMN);
+    MatrixMinus(Y, Temp1, Temp1, Y_ROW, Y_COLUMN);
+    MatrixMul(K, Temp1, Temp2, K_ROW, Y_ROW, Y_COLUMN);
+    MatrixAdd(X, Temp2, tOpt.XNowOpt, X_ROW, X_COLUMN);          //  跦擂嘛聆硉睿聆講硉數呾絞?郔蚥硉; X(k|k) = X(k|k-1)+Kg(k)*(Y(k)-C*X(k|k-1))
+    
+    MatrixMul(K, C, Temp4, K_ROW, C_ROW, C_COLUMN);
+    MatrixMinus(I, Temp4, Temp4, I_ROW, I_COLUMN);
+    MatrixMul(Temp4, P, tCov.PNowOpt, I_ROW, P_ROW, P_COLUMN);   //  數呾載陔綴嘛數衪滅船撻淝; P(k|k) =ㄗI-Kg(k)*Cㄘ*P(k|k-1)
+    
+    for (i=0; i<X_LENGTH; i++)
+    {
+      tOpt.XPreOpt[i] = tOpt.XNowOpt[i];
+    }
+    for (i=0; i<P_LENGTH; i++)
+    {
+      tCov.PPreOpt[i] = tCov.PNowOpt[i];
+    }
+   // Watch3[j] = tOpt.XNowOpt[0];
+    
+  }//end of for
+  return tOpt.XNowOpt[0];
+}
+
+float KalMan_1(float input)
+{
+	unsigned char   i,j;
+  //for (j=0; j<N; j++)
+  {
+    //Watch1[j] = 100 + j*2;
+    //Watch1[j] = input;
+
+    //Y[0] = Watch1[j] + Random1(0, 0.4);
+   // Y[0] = Watch1[j] + (rand()%20)-10;
+    Y_1[0] = input;
+    //Watch2[j] = Y[0];
+    MatrixMul(A_1, tOpt_1.XPreOpt, X_1, A_ROW, X_ROW, X_COLUMN);       //  價衾炵苀腔奻珨袨怓奧啎聆珋婓袨怓; X(k|k-1) = A(k,k-1)*X(k-1|k-1)
+    
+    MatrixCal1(A_1, tCov_1.PPreOpt, Temp4_1, SYS_ORDER);
+    MatrixAdd(Temp4_1, Q_1, P_1, P_ROW, P_COLUMN);                     //  啎聆杅擂腔衪源船撻淝; P(k|k-1) = A(k,k-1)*P(k-1|k-1)*A(k,k-1)'+Q
+    
+    MatrixCal2(C_1, P_1, Temp1_1, C_ROW, C_COLUMN);
+    MatrixAdd(Temp1_1, R_1, Temp1_1, R_ROW, R_COLUMN);
+    Gauss_Jordan(Temp1_1, C_ROW);
+    MatrixTrans(C_1, Temp2_1, C_ROW, C_COLUMN);
+    MatrixMul(P_1, Temp2_1, Temp22_1, P_ROW, C_COLUMN, C_ROW);
+    MatrixMul(Temp22_1, Temp1_1, K_1, P_ROW, C_ROW, C_ROW);            //  數呾縐嫌霤崝祔; K(k) = P(k|k-1)*C' / (C(k)*P(k|k-1)*C(k)' + R)
+    
+    MatrixMul(C_1, X_1, Temp1_1, C_ROW, X_ROW, X_COLUMN);
+    MatrixMinus(Y_1, Temp1_1, Temp1_1, Y_ROW, Y_COLUMN);
+    MatrixMul(K_1, Temp1_1, Temp2_1, K_ROW, Y_ROW, Y_COLUMN);
+    MatrixAdd(X_1, Temp2_1, tOpt_1.XNowOpt, X_ROW, X_COLUMN);          //  跦擂嘛聆硉睿聆講硉數呾絞?郔蚥硉; X(k|k) = X(k|k-1)+Kg(k)*(Y(k)-C*X(k|k-1))
+    
+    MatrixMul(K_1, C_1, Temp4_1, K_ROW, C_ROW, C_COLUMN);
+    MatrixMinus(I_1, Temp4_1, Temp4_1, I_ROW, I_COLUMN);
+    MatrixMul(Temp4_1, P_1, tCov_1.PNowOpt, I_ROW, P_ROW, P_COLUMN);   //  數呾載陔綴嘛數衪滅船撻淝; P(k|k) =ㄗI-Kg(k)*Cㄘ*P(k|k-1)
+    
+    for (i=0; i<X_LENGTH; i++)
+    {
+      tOpt_1.XPreOpt[i] = tOpt_1.XNowOpt[i];
+    }
+    for (i=0; i<P_LENGTH; i++)
+    {
+      tCov_1.PPreOpt[i] = tCov_1.PNowOpt[i];
+    }
+   // Watch3[j] = tOpt.XNowOpt[0];
+    
+  }//end of for
+  return tOpt_1.XNowOpt[0];
+}
+
+float KalMan_2(float input)
+{
+	unsigned char   i,j;
+  //for (j=0; j<N; j++)
+  {
+    //Watch1[j] = 100 + j*2;
+    //Watch1[j] = input;
+
+    //Y[0] = Watch1[j] + Random1(0, 0.4);
+   // Y[0] = Watch1[j] + (rand()%20)-10;
+    Y_2[0] = input;
+    //Watch2[j] = Y[0];
+    MatrixMul(A_2, tOpt_2.XPreOpt, X_2, A_ROW, X_ROW, X_COLUMN);       //  價衾炵苀腔奻珨袨怓奧啎聆珋婓袨怓; X(k|k-1) = A(k,k-1)*X(k-1|k-1)
+    
+    MatrixCal1(A_2, tCov_2.PPreOpt, Temp4_2, SYS_ORDER);
+    MatrixAdd(Temp4_2, Q_2, P_2, P_ROW, P_COLUMN);                     //  啎聆杅擂腔衪源船撻淝; P(k|k-1) = A(k,k-1)*P(k-1|k-1)*A(k,k-1)'+Q
+
+    MatrixCal2(C_2, P_2, Temp1_2, C_ROW, C_COLUMN);
+    MatrixAdd(Temp1_2, R_2, Temp1_2, R_ROW, R_COLUMN);
+    Gauss_Jordan(Temp1_2, C_ROW);
+    MatrixTrans(C_2, Temp2_2, C_ROW, C_COLUMN);
+    MatrixMul(P_2, Temp2_2, Temp22_2, P_ROW, C_COLUMN, C_ROW);
+    MatrixMul(Temp22_2, Temp1_2, K_2, P_ROW, C_ROW, C_ROW);            //  數呾縐嫌霤崝祔; K(k) = P(k|k-1)*C' / (C(k)*P(k|k-1)*C(k)' + R)
+    
+    MatrixMul(C_2, X_2, Temp1_2, C_ROW, X_ROW, X_COLUMN);
+    MatrixMinus(Y_2, Temp1_2, Temp1_2, Y_ROW, Y_COLUMN);
+    MatrixMul(K_2, Temp1_2, Temp2_2, K_ROW, Y_ROW, Y_COLUMN);
+    MatrixAdd(X_2, Temp2_2, tOpt_2.XNowOpt, X_ROW, X_COLUMN);          //  跦擂嘛聆硉睿聆講硉數呾絞?郔蚥硉; X(k|k) = X(k|k-1)+Kg(k)*(Y(k)-C*X(k|k-1))
+    
+    MatrixMul(K_2, C_2, Temp4_2, K_ROW, C_ROW, C_COLUMN);
+    MatrixMinus(I_2, Temp4_2, Temp4_2, I_ROW, I_COLUMN);
+    MatrixMul(Temp4_2, P_2, tCov_2.PNowOpt, I_ROW, P_ROW, P_COLUMN);   //  數呾載陔綴嘛數衪滅船撻淝; P(k|k) =ㄗI-Kg(k)*Cㄘ*P(k|k-1)
+    
+    for (i=0; i<X_LENGTH; i++)
+    {
+      tOpt_2.XPreOpt[i] = tOpt_2.XNowOpt[i];
+    }
+    for (i=0; i<P_LENGTH; i++)
+    {
+      tCov_2.PPreOpt[i] = tCov_2.PNowOpt[i];
+    }
+   // Watch3[j] = tOpt.XNowOpt[0];
+    
+  }//end of for
+  return tOpt_2.XNowOpt[0];
 }

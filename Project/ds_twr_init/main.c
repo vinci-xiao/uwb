@@ -50,8 +50,13 @@
 #include "trilateration.h"
 #include <math.h>
 #include "stm32_eval.h"
+#include "kalman.h"
 
 #define RNG_DELAY_MS 5
+
+extern float KalMan(float);
+extern float KalMan_1(float);
+extern float KalMan_2(float);
 
 /* Default communication configuration. We use here EVK1000's default mode (mode 3). */
 static dwt_config_t config =
@@ -176,7 +181,7 @@ static void compute_angle_send_to_anthor0(int distance1, int distance2, int dist
 static void distance_mange(void);
 void USART_puts(uint8_t *s,uint8_t len);
 
-#define TAG
+//#define TAG
 #define TAG_ID 0x0F
 #define MASTER_TAG 0x0F
 #define MAX_SLAVE_TAG 0x02
@@ -184,7 +189,7 @@ void USART_puts(uint8_t *s,uint8_t len);
 
 #define ANTHOR
 #define ANCHOR_MAX_NUM 3
-#define ANCHOR_IND 2  // 0 1 2
+#define ANCHOR_IND 1  // 0 1 2
 //#define ANCHOR_IND ANCHOR_NUM
 
 uint8 Semaphore[MAX_SLAVE_TAG];
@@ -405,6 +410,10 @@ double final_distance =  0;
 int  first_distance = 1 ; 
 int main(void)
 {
+	KalMan_Init();
+	KalMan_Init_1();
+	KalMan_Init_2();
+	
     uint8 anthor_index = 0;
     uint8 tag_index = 0;
 
@@ -939,6 +948,12 @@ static void distance_mange(void)
             Anchor_Index++;
         }
     }
+
+		//handle an0 and an1
+		Anthordistance[0]=KalMan((float)Anthordistance[0]);
+		Anthordistance[1]=KalMan_1((float)Anthordistance[1]);
+		Anthordistance[2]=KalMan_2((float)Anthordistance[2]);		
+		
     compute_angle_send_to_anthor0(Anthordistance[0], Anthordistance[1],Anthordistance[2]);
 
     if(first_distance == 1)
